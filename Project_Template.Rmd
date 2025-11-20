@@ -1,3 +1,8 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
 \newpage
 \tableofcontents 
 \newpage
@@ -8,13 +13,46 @@
 
 ```{r setup, include=FALSE}
 # Set your working directory
+getwd()
+library(tidyverse)
+library(sf)
+library(ggplot2)
 
-# Load your packages
+disasters <- read.csv("./Data/us_disaster_declarations.csv", stringsAsFactors = T)
+counties <- st_read("./Data/Spatial/cb_2018_us_county_20m.shp", stringsAsFactors = T)
 
-# Set your ggplot theme
+flood <- disasters %>% 
+  filter(incident_type == "Flood") %>% 
+  select(c(state:incident_type), fips) %>% 
+  filter(fy_declared %in% c(1990:2025)) %>% 
+  arrange(state)
 
-# Load your datasets
+#convert FIDs into 5 digits
+counties$GEOID <- as.numeric(as.character(counties$GEOID))
+flood.spatial <- left_join(flood, counties, by = c("fips" = "GEOID"))
+summary(flood.spatial) # 113 NAs because some data are located at state level instead of county level.
 
+#clean the spatial data
+st_crs(counties)$epsg #4269
+flood.spatial <- flood.spatial %>% 
+  select(state,declaration_date,fy_declared, incident_type, fips, 
+         STATEFP, COUNTYFP, NAME, geometry) %>% 
+  #na.omit() %>% 
+  st_as_sf(crs = 4269)
+
+library(mapview)
+mapview(flood.spatial)
+
+ggplot(flood.spatial,aes(x = state))+
+  geom_bar()
+#Minnesota has the highest count of flood - ~400 in the past 25 years
+
+library(leaflet)
+leaflet(st_centroid(flood.spatial)) %>% 
+  addTiles() %>% 
+  addMarkers(
+    clusterOptions = markerClusterOptions()
+  )
 ```
 
 
